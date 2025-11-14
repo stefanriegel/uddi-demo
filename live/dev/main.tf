@@ -30,10 +30,6 @@ resource "bloxone_dns_a_record" "a_record" {
   rdata = {
     address = var.record_value
   }
-
-  options = {
-    cloudflare_proxied = var.orange_cloud
-  }
 }
 
 # AAAA Record (conditional)
@@ -46,10 +42,6 @@ resource "bloxone_dns_aaaa_record" "aaaa_record" {
 
   rdata = {
     address = var.record_value
-  }
-
-  options = {
-    cloudflare_proxied = var.orange_cloud
   }
 }
 
@@ -76,10 +68,6 @@ resource "bloxone_dns_cname_record" "cname_record" {
 
   rdata = {
     cname = var.record_value
-  }
-
-  options = {
-    cloudflare_proxied = var.orange_cloud
   }
 }
 
