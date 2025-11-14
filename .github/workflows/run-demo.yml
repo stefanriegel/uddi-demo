@@ -29,11 +29,11 @@ on:
         default: 120
         required: true
         type: number
-      enable_proxy:
-        description: "Enable Cloudflare proxy (orange cloud)"
-        required: false
-        type: boolean
-        default: false
+        orange_cloud:
+          description: 'Orange Cloud'
+          required: false
+          type: boolean
+          default: false
       action:
         description: "Terraform action"
         required: true
@@ -92,7 +92,7 @@ jobs:
             -var="record_type=${{ inputs.record_type }}" \
             -var="record_value=${{ inputs.record_value }}" \
             -var="ttl=${{ inputs.ttl }}" \
-            -var="enable_proxy=${{ inputs.enable_proxy }}" \
+            -var="orange_cloud=${{ inputs.orange_cloud }}" \
             -out=tfplan
 
       - name: Terraform Apply
@@ -112,7 +112,7 @@ jobs:
             -var="record_type=${{ inputs.record_type }}" \
             -var="record_value=${{ inputs.record_value }}" \
             -var="ttl=${{ inputs.ttl }}" \
-            -var="enable_proxy=${{ inputs.enable_proxy }}"
+            -var="orange_cloud=${{ inputs.orange_cloud }}"
 
       - name: DNS Verification (dig @8.8.8.8)
         if: ${{ inputs.action == 'apply' }}
@@ -147,7 +147,7 @@ jobs:
           echo "- Type: ${{ inputs.record_type }}" >> $GITHUB_STEP_SUMMARY
           echo "- Value: ${{ inputs.record_value }}" >> $GITHUB_STEP_SUMMARY
           echo "- TTL: ${{ inputs.ttl }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Cloudflare Proxy: ${{ inputs.enable_proxy }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Orange Cloud: ${{ inputs.orange_cloud }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f "tfoutputs.json" ]; then
             echo "### Terraform Outputs" >> $GITHUB_STEP_SUMMARY

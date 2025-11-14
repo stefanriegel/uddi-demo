@@ -48,8 +48,8 @@ resource "bloxone_dns_aaaa_record" "aaaa_record" {
     address = var.record_value
   }
 
-  options = {
-    cloudflare_proxied = var.enable_proxy
+  options {
+    cloudflare_proxied = var.orange_cloud
   }
 }
 
@@ -78,8 +78,8 @@ resource "bloxone_dns_cname_record" "cname_record" {
     cname = var.record_value
   }
 
-  options = {
-    cloudflare_proxied = var.enable_proxy
+  options {
+    cloudflare_proxied = var.orange_cloud
   }
 }
 

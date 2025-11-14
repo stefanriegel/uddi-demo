@@ -48,8 +48,8 @@ variable "ttl" {
   default     = 120
 }
 
-variable "enable_proxy" {
-  description = "Enable Cloudflare proxy (orange cloud) for A/AAAA/CNAME records"
+variable "orange_cloud" {
+  description = "Enable Cloudflare Orange Cloud (proxy) for A/AAAA/CNAME records"
   type        = bool
   default     = false
 }
