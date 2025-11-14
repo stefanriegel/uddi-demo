@@ -10,6 +10,6 @@ terraform {
 }
 
 provider "bloxone" {
-  host    = var.bloxone_host
+  csp_url = var.bloxone_host
   api_key = var.bloxone_api_key
 }
