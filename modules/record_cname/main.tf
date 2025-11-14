@@ -5,6 +5,6 @@ resource "bloxone_dns_cname_record" "this" {
   comment      = "Terraform-managed CNAME record"
 
   rdata = {
-    canonical = var.cname_target
+    cname = var.cname_target
   }
 }
