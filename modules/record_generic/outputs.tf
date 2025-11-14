@@ -5,7 +5,12 @@ locals {
 
 output "record_id" {
   description = "UDDI record object ID"
-  value       = bloxone_dns_record.this.id
+  value       = try(
+    bloxone_dns_a_record.a_record[0].id,
+    bloxone_dns_aaaa_record.aaaa_record[0].id,
+    bloxone_dns_txt_record.txt_record[0].id,
+    null
+  )
 }
 
 output "record_fqdn" {

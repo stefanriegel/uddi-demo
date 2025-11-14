@@ -50,7 +50,6 @@ jobs:
     env:
       BLOXONE_HOST: ${{ vars.BLOXONE_HOST }}
       BLOXONE_API_KEY: ${{ secrets.BLOXONE_API_KEY }}
-      CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
 
     steps:
       - name: Checkout
@@ -83,7 +82,6 @@ jobs:
           terraform plan -input=false -no-color \
             -var="bloxone_host=${BLOXONE_HOST:-https://csp.infoblox.com}" \
             -var="bloxone_api_key=${BLOXONE_API_KEY}" \
-            -var="cloudflare_account_id=${CF_ACCOUNT_ID}" \
             -var="zone_fqdn=${{ inputs.zone_fqdn }}" \
             -var="record_name=${{ inputs.record_name }}" \
             -var="record_type=${{ inputs.record_type }}" \
@@ -103,7 +101,6 @@ jobs:
           terraform destroy -input=false -auto-approve -no-color \
             -var="bloxone_host=${BLOXONE_HOST:-https://csp.infoblox.com}" \
             -var="bloxone_api_key=${BLOXONE_API_KEY}" \
-            -var="cloudflare_account_id=${CF_ACCOUNT_ID}" \
             -var="zone_fqdn=${{ inputs.zone_fqdn }}" \
             -var="record_name=${{ inputs.record_name }}" \
             -var="record_type=${{ inputs.record_type }}" \

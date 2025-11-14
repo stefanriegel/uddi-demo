@@ -1,13 +1,12 @@
 module "cf_zone" {
-  source                 = "../../modules/cf_zone"
-  zone_fqdn              = var.zone_fqdn
-  cloudflare_account_id  = var.cloudflare_account_id
+  source    = "../../modules/cf_zone"
+  zone_fqdn = var.zone_fqdn
 }
 
 module "record_generic" {
   source       = "../../modules/record_generic"
   count        = var.record_type == "CNAME" ? 0 : 1
-  zone_fqdn    = var.zone_fqdn
+  zone_fqdn    = module.cf_zone.zone_id
   record_name  = var.record_name
   record_type  = var.record_type
   record_value = var.record_value
@@ -15,12 +14,12 @@ module "record_generic" {
 }
 
 module "record_cname" {
-  source        = "../../modules/record_cname"
-  count         = var.record_type == "CNAME" ? 1 : 0
-  zone_fqdn     = var.zone_fqdn
-  record_name   = var.record_name
-  cname_target  = var.record_value
-  ttl           = var.ttl
+  source       = "../../modules/record_cname"
+  count        = var.record_type == "CNAME" ? 1 : 0
+  zone_fqdn    = module.cf_zone.zone_id
+  record_name  = var.record_name
+  cname_target = var.record_value
+  ttl          = var.ttl
 }
 
 # Outputs

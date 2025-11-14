@@ -10,11 +10,6 @@ variable "bloxone_api_key" {
   sensitive   = true
 }
 
-variable "cloudflare_account_id" {
-  description = "Cloudflare Account ID to link the external provider association"
-  type        = string
-}
-
 variable "zone_fqdn" {
   description = "Authoritative Zone FQDN with trailing dot (e.g. virtualife.pro.)"
   type        = string
