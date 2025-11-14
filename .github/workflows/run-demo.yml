@@ -29,11 +29,11 @@ on:
         default: 120
         required: true
         type: number
-        orange_cloud:
-          description: 'Orange Cloud'
-          required: false
-          type: boolean
-          default: false
+      orange_cloud:
+        description: 'Orange Cloud'
+        required: false
+        type: boolean
+        default: false
       action:
         description: "Terraform action"
         required: true
