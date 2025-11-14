@@ -233,17 +233,40 @@ jobs:
               ZONE_NAME="${ZONE_NAME%.}"  # Remove trailing dot
               echo "Looking for zone: ${ZONE_NAME}"
               
-              ZONE_LOOKUP=$(curl -s -X GET "https://api.cloudflare.com/v4/zones?name=${ZONE_NAME}" \
+              ZONE_LOOKUP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "https://api.cloudflare.com/v4/zones?name=${ZONE_NAME}" \
                 -H "Authorization: Bearer ${CF_API_TOKEN}" \
                 -H "Content-Type: application/json")
               
-              CF_ZONE_ID=$(echo "${ZONE_LOOKUP}" | jq -r '.result[0].id // empty')
+              # Extract HTTP status
+              HTTP_STATUS=$(echo "${ZONE_LOOKUP}" | grep "HTTP_STATUS:" | cut -d: -f2)
+              ZONE_BODY=$(echo "${ZONE_LOOKUP}" | sed '/HTTP_STATUS:/d')
               
-              if [ -n "${CF_ZONE_ID}" ]; then
-                echo "Found Zone ID: ${CF_ZONE_ID}"
+              echo "HTTP Status: ${HTTP_STATUS}"
+              
+              if [ "${HTTP_STATUS}" != "200" ]; then
+                echo "⚠️  Cloudflare API Error (HTTP ${HTTP_STATUS})"
+                echo "Raw Response:"
+                echo "${ZONE_BODY}"
+                echo ""
+                echo "Possible issues:"
+                echo "  - CF_API_TOKEN is invalid or expired"
+                echo "  - Token doesn't have 'Zone:Read' permission"
+                echo "  - Account doesn't have access to this zone"
               else
-                echo "⚠️  Could not find zone in Cloudflare account"
-                echo "API Response: ${ZONE_LOOKUP}" | jq .
+                # Try to parse JSON
+                CF_ZONE_ID=$(echo "${ZONE_BODY}" | jq -r '.result[0].id // empty' 2>/dev/null)
+                
+                if [ -n "${CF_ZONE_ID}" ]; then
+                  echo "✅ Found Zone ID: ${CF_ZONE_ID}"
+                else
+                  echo "⚠️  Zone '${ZONE_NAME}' not found in Cloudflare account"
+                  ZONE_COUNT=$(echo "${ZONE_BODY}" | jq -r '.result | length' 2>/dev/null || echo "0")
+                  echo "Available zones: ${ZONE_COUNT}"
+                  if [ "${ZONE_COUNT}" -gt 0 ]; then
+                    echo "Zones in account:"
+                    echo "${ZONE_BODY}" | jq -r '.result[].name' 2>/dev/null
+                  fi
+                fi
               fi
               echo ""
             fi
