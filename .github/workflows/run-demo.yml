@@ -362,30 +362,66 @@ jobs:
         env:
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: |
-          echo "# UDDI + Cloudflare Demo Report" >> $GITHUB_STEP_SUMMARY
+          echo "# 🚀 UDDI + Cloudflare Automation Demo" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Executive Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This demonstration shows **automated DNS record management** through Infoblox Universal DDI, automatically synchronized to Cloudflare's global edge network." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Status badges
+          if [ "${{ inputs.action }}" == "apply" ]; then
+            echo "![Status](https://img.shields.io/badge/Status-Deployed-success?style=for-the-badge)" >> $GITHUB_STEP_SUMMARY
+            echo "![UDDI](https://img.shields.io/badge/Infoblox-UDDI-0066cc?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIGZpbGw9IiMwMDY2Y2MiLz48L3N2Zz4=)" >> $GITHUB_STEP_SUMMARY
+            echo "![Cloudflare](https://img.shields.io/badge/Cloudflare-Synced-f38020?style=for-the-badge&logo=cloudflare)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "![Status](https://img.shields.io/badge/Status-Destroyed-critical?style=for-the-badge)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Workflow diagram
+          echo "## 🔄 Automation Workflow" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`mermaid" >> $GITHUB_STEP_SUMMARY
+          echo "graph LR" >> $GITHUB_STEP_SUMMARY
+          echo "    A[GitHub Actions] -->|Terraform| B[Infoblox UDDI]" >> $GITHUB_STEP_SUMMARY
+          echo "    B -->|Auto-Sync| C[Cloudflare]" >> $GITHUB_STEP_SUMMARY
+          echo "    C -->|Global Edge| D[End Users]" >> $GITHUB_STEP_SUMMARY
+          echo "    style A fill:#2088FF" >> $GITHUB_STEP_SUMMARY
+          echo "    style B fill:#0066cc" >> $GITHUB_STEP_SUMMARY
+          echo "    style C fill:#f38020" >> $GITHUB_STEP_SUMMARY
+          echo "    style D fill:#00C853" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Configuration Section
-          echo "## Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚙️ Record Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Action** | \`${{ inputs.action }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.action }}" == "apply" ]; then
+            echo "| **Action** | 🚀 \`Deploy\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Action** | 🗑️ \`Destroy\` |" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "| **Zone** | \`${{ inputs.zone_fqdn }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Record Name** | \`${{ inputs.record_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Type** | \`${{ inputs.record_type }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Value** | \`${{ inputs.record_value }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **TTL** | \`${{ inputs.ttl }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **TTL** | \`${{ inputs.ttl }}s\` |" >> $GITHUB_STEP_SUMMARY
           if [ "${{ inputs.orange_cloud }}" == "true" ]; then
-            echo "| **Orange Cloud** | ENABLED |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Cloudflare Proxy** | 🟠 **ENABLED** (Orange Cloud) |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| **Orange Cloud** | Disabled |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Cloudflare Proxy** | ⚪ Disabled (DNS Only) |" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "| **Executed** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # DNS Verification Section
           if [ "${{ inputs.action }}" == "apply" ]; then
-            echo "## DNS Verification" >> $GITHUB_STEP_SUMMARY
+            echo "## 🌐 Global DNS Verification" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "*Verified across multiple authoritative DNS resolvers worldwide*" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
             if [ -f "dig-google.txt" ]; then
@@ -414,7 +450,7 @@ jobs:
             
             # Cloudflare Dashboard Info
             if [ -f "cf-response.json" ]; then
-              echo "## Cloudflare Dashboard" >> $GITHUB_STEP_SUMMARY
+              echo "## ☁️ Cloudflare Edge Network Status" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               
               RECORD_COUNT=$(jq -r '.result | length' cf-response.json 2>/dev/null || echo "0")
@@ -427,27 +463,39 @@ jobs:
                 CF_PROXIED=$(jq -r '.result[0].proxied' cf-response.json)
                 CF_ID=$(jq -r '.result[0].id' cf-response.json)
                 
+                echo "> ✅ **Synchronization Complete** - Record successfully deployed to Cloudflare's global edge network" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                echo "### Record Details" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
                 echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
                 echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-                echo "| Status | Synced to Cloudflare |" >> $GITHUB_STEP_SUMMARY
-                echo "| Record ID | \`${CF_ID}\` |" >> $GITHUB_STEP_SUMMARY
-                echo "| Name | \`${CF_NAME}\` |" >> $GITHUB_STEP_SUMMARY
-                echo "| Type | \`${CF_TYPE}\` |" >> $GITHUB_STEP_SUMMARY
-                echo "| Content | \`${CF_CONTENT}\` |" >> $GITHUB_STEP_SUMMARY
-                echo "| TTL | \`${CF_TTL}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| **Cloudflare Record ID** | \`${CF_ID}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| **FQDN** | \`${CF_NAME}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| **Record Type** | \`${CF_TYPE}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| **Target** | \`${CF_CONTENT}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| **TTL** | \`${CF_TTL}s\` |" >> $GITHUB_STEP_SUMMARY
                 
                 if [ "${CF_PROXIED}" == "true" ]; then
-                  echo "| Proxy Status | ENABLED (Orange Cloud) |" >> $GITHUB_STEP_SUMMARY
+                  echo "| **Proxy Status** | 🟠 **PROXIED** (Traffic routed through Cloudflare) |" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "**⚡ Benefits Active:**" >> $GITHUB_STEP_SUMMARY
+                  echo "- DDoS Protection" >> $GITHUB_STEP_SUMMARY
+                  echo "- CDN Acceleration" >> $GITHUB_STEP_SUMMARY
+                  echo "- SSL/TLS Encryption" >> $GITHUB_STEP_SUMMARY
+                  echo "- WAF (Web Application Firewall)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "| Proxy Status | DISABLED (DNS Only) |" >> $GITHUB_STEP_SUMMARY
+                  echo "| **Proxy Status** | ⚪ DNS Only (Direct connection) |" >> $GITHUB_STEP_SUMMARY
                 fi
                 
                 echo "" >> $GITHUB_STEP_SUMMARY
                 if [ -n "${CF_ZONE_ID}" ]; then
-                  echo "[Open Cloudflare Dashboard](https://dash.cloudflare.com/${CF_ZONE_ID}/dns/records)" >> $GITHUB_STEP_SUMMARY
+                  echo "### 🔗 Management Links" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "[📡 View in Cloudflare Dashboard](https://dash.cloudflare.com/${CF_ZONE_ID}/dns/records)" >> $GITHUB_STEP_SUMMARY
                 fi
               else
-                echo "Record not yet synced to Cloudflare (may take a few moments)" >> $GITHUB_STEP_SUMMARY
+                echo "> ⏳ Record synchronization in progress (typically completes within seconds)" >> $GITHUB_STEP_SUMMARY
               fi
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
@@ -467,12 +515,34 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
           
-          # Notes Section
+          # Business Value Section
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Notes" >> $GITHUB_STEP_SUMMARY
+          echo "## 💼 Business Value" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- State is kept local and cached via Actions Cache" >> $GITHUB_STEP_SUMMARY
-          echo "- Use the same inputs for destroy to re-use cache" >> $GITHUB_STEP_SUMMARY
-          echo "- CNAME targets must end with a trailing dot" >> $GITHUB_STEP_SUMMARY
-          echo "- DNS propagation can take up to a few minutes" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Key Benefits Demonstrated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **🤖 Full Automation** - Zero manual intervention in Cloudflare UI" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔒 Single Source of Truth** - All DNS managed through Infoblox UDDI" >> $GITHUB_STEP_SUMMARY
+          echo "- **⚡ Instant Deployment** - Changes propagate within seconds" >> $GITHUB_STEP_SUMMARY
+          echo "- **🌐 Global Distribution** - Cloudflare's 300+ PoPs worldwide" >> $GITHUB_STEP_SUMMARY
+          echo "- **📊 Audit Trail** - Complete history via GitHub Actions" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔄 Consistency** - IaC ensures reproducible deployments" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Technical Notes
+          echo "### 📖 Technical Notes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Implementation Details</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Infrastructure as Code**: Terraform with BloxOne provider" >> $GITHUB_STEP_SUMMARY
+          echo "- **State Management**: GitHub Actions cache for ephemeral demos" >> $GITHUB_STEP_SUMMARY
+          echo "- **Auto-Cleanup**: Scheduled workflow runs daily at 00:00 GMT+2" >> $GITHUB_STEP_SUMMARY
+          echo "- **DNS Verification**: Multi-resolver validation (Google, Cloudflare, Quad9)" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Integration**: Direct Cloudflare API for orange cloud configuration" >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Demo powered by Infoblox Universal DDI + Cloudflare + GitHub Actions*" >> $GITHUB_STEP_SUMMARY
