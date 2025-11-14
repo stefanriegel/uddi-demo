@@ -167,6 +167,11 @@ jobs:
         run: |
           set -e
           
+          # Wait for UDDI to Cloudflare sync
+          echo "⏳ Waiting 10 seconds for UDDI → Cloudflare sync..."
+          sleep 10
+          echo ""
+          
           # Construct FQDN
           if [ -z "${{ inputs.record_name }}" ]; then
             FQDN="${{ inputs.zone_fqdn }}"
@@ -186,15 +191,27 @@ jobs:
           
           # Dig from multiple nameservers
           echo "📡 Querying Google DNS (8.8.8.8)..."
-          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @8.8.8.8 | tee dig-google.txt
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @8.8.8.8 | tee dig-google.txt || echo "(no answer)" | tee dig-google.txt
+          if [ ! -s dig-google.txt ]; then
+            echo "(no answer yet - DNS propagation in progress)" | tee dig-google.txt
+          fi
+          cat dig-google.txt
           echo ""
           
           echo "📡 Querying Cloudflare DNS (1.1.1.1)..."
-          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @1.1.1.1 | tee dig-cloudflare.txt
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @1.1.1.1 | tee dig-cloudflare.txt || echo "(no answer)" | tee dig-cloudflare.txt
+          if [ ! -s dig-cloudflare.txt ]; then
+            echo "(no answer yet - DNS propagation in progress)" | tee dig-cloudflare.txt
+          fi
+          cat dig-cloudflare.txt
           echo ""
           
           echo "📡 Querying Quad9 DNS (9.9.9.9)..."
-          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @9.9.9.9 | tee dig-quad9.txt
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @9.9.9.9 | tee dig-quad9.txt || echo "(no answer)" | tee dig-quad9.txt
+          if [ ! -s dig-quad9.txt ]; then
+            echo "(no answer yet - DNS propagation in progress)" | tee dig-quad9.txt
+          fi
+          cat dig-quad9.txt
           echo ""
           
           # Full dig for debugging
@@ -212,12 +229,24 @@ jobs:
             # Clean record name for API query
             RECORD_NAME="${FQDN%.}"
             
+            echo "Querying Cloudflare API for: ${RECORD_NAME} (${TYPE})"
+            echo "Zone ID: ${CF_ZONE_ID}"
+            echo ""
+            
             # Query Cloudflare API for record
             CF_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/v4/zones/${CF_ZONE_ID}/dns_records?name=${RECORD_NAME}&type=${TYPE}" \
               -H "Authorization: Bearer ${CF_API_TOKEN}" \
               -H "Content-Type: application/json")
             
             echo "${CF_RESPONSE}" > cf-response.json
+            
+            # Check API response success
+            CF_SUCCESS=$(echo "${CF_RESPONSE}" | jq -r '.success' 2>/dev/null || echo "false")
+            if [ "${CF_SUCCESS}" != "true" ]; then
+              echo "⚠️  Cloudflare API Error:"
+              echo "${CF_RESPONSE}" | jq -r '.errors[]?.message' 2>/dev/null || echo "Unknown error"
+              echo ""
+            fi
             
             # Check if record exists in Cloudflare
             RECORD_COUNT=$(echo "${CF_RESPONSE}" | jq -r '.result | length')
