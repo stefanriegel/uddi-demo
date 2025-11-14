@@ -2,8 +2,8 @@ name: "Automated Cleanup"
 
 on:
   schedule:
-    # Runs at midnight UTC every day
-    - cron: '0 0 * * *'
+    # Runs at midnight GMT+2 (22:00 UTC) every day
+    - cron: '0 22 * * *'
   workflow_dispatch:
     inputs:
       confirm:
@@ -107,4 +107,4 @@ jobs:
             echo "ℹ️ **Status**: No resources found - nothing to cleanup" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "_Scheduled cleanup runs daily at 00:00 UTC_" >> $GITHUB_STEP_SUMMARY
+          echo "_Scheduled cleanup runs daily at 00:00 GMT+2 (22:00 UTC)_" >> $GITHUB_STEP_SUMMARY
