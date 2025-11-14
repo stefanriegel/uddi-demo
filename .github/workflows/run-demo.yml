@@ -1,4 +1,4 @@
-name: "Run UDDI + Cloudflare Demo"
+name: "Infoblox UDDI Multi-Cloud DNS Automation"
 
 on:
   workflow_dispatch:
@@ -46,7 +46,7 @@ env:
 
 jobs:
   demo:
-    name: "UDDI + Cloudflare Demo"
+    name: "Deploy DNS via Infoblox UDDI → ${{ inputs.record_type }} Record"
     runs-on: ubuntu-latest
     environment: dev
     defaults:
@@ -362,36 +362,45 @@ jobs:
         env:
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: |
-          echo "# 🚀 UDDI + Cloudflare Automation Demo" >> $GITHUB_STEP_SUMMARY
+          echo "# 🚀 Infoblox Universal DDI - Multi-Cloud DNS Automation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Executive Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This demonstration shows **automated DNS record management** through Infoblox Universal DDI, automatically synchronized to Cloudflare's global edge network." >> $GITHUB_STEP_SUMMARY
+          echo "This demonstration showcases **Infoblox Universal DDI** as a **single source of truth** for DNS management across multiple cloud providers. DNS records created in UDDI are automatically synchronized to downstream DNS services (demonstrated with Cloudflare)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Status badges
           if [ "${{ inputs.action }}" == "apply" ]; then
             echo "![Status](https://img.shields.io/badge/Status-Deployed-success?style=for-the-badge)" >> $GITHUB_STEP_SUMMARY
-            echo "![UDDI](https://img.shields.io/badge/Infoblox-UDDI-0066cc?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIGZpbGw9IiMwMDY2Y2MiLz48L3N2Zz4=)" >> $GITHUB_STEP_SUMMARY
-            echo "![Cloudflare](https://img.shields.io/badge/Cloudflare-Synced-f38020?style=for-the-badge&logo=cloudflare)" >> $GITHUB_STEP_SUMMARY
+            echo "![UDDI](https://img.shields.io/badge/Infoblox-Universal_DDI-0066cc?style=for-the-badge)" >> $GITHUB_STEP_SUMMARY
+            echo "![Automation](https://img.shields.io/badge/Automation-Active-00C853?style=for-the-badge)" >> $GITHUB_STEP_SUMMARY
+            echo "![Target](https://img.shields.io/badge/Target-Cloudflare-f38020?style=for-the-badge&logo=cloudflare)" >> $GITHUB_STEP_SUMMARY
           else
             echo "![Status](https://img.shields.io/badge/Status-Destroyed-critical?style=for-the-badge)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Workflow diagram
-          echo "## 🔄 Automation Workflow" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔄 Automation Architecture" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`mermaid" >> $GITHUB_STEP_SUMMARY
-          echo "graph LR" >> $GITHUB_STEP_SUMMARY
-          echo "    A[GitHub Actions] -->|Terraform| B[Infoblox UDDI]" >> $GITHUB_STEP_SUMMARY
-          echo "    B -->|Auto-Sync| C[Cloudflare]" >> $GITHUB_STEP_SUMMARY
-          echo "    C -->|Global Edge| D[End Users]" >> $GITHUB_STEP_SUMMARY
-          echo "    style A fill:#2088FF" >> $GITHUB_STEP_SUMMARY
-          echo "    style B fill:#0066cc" >> $GITHUB_STEP_SUMMARY
-          echo "    style C fill:#f38020" >> $GITHUB_STEP_SUMMARY
-          echo "    style D fill:#00C853" >> $GITHUB_STEP_SUMMARY
+          echo "graph TB" >> $GITHUB_STEP_SUMMARY
+          echo "    A[Infrastructure as Code<br/>Terraform] -->|BloxOne Provider| B[Infoblox UDDI<br/>Single Source of Truth]" >> $GITHUB_STEP_SUMMARY
+          echo "    B -->|Native Integration| C1[Cloudflare]" >> $GITHUB_STEP_SUMMARY
+          echo "    B -.->|Also supports| C2[AWS Route53]" >> $GITHUB_STEP_SUMMARY
+          echo "    B -.->|Also supports| C3[Azure DNS]" >> $GITHUB_STEP_SUMMARY
+          echo "    B -.->|Also supports| C4[GCP Cloud DNS]" >> $GITHUB_STEP_SUMMARY
+          echo "    C1 --> D[Global DNS Resolution]" >> $GITHUB_STEP_SUMMARY
+          echo "    C2 -.-> D" >> $GITHUB_STEP_SUMMARY
+          echo "    C3 -.-> D" >> $GITHUB_STEP_SUMMARY
+          echo "    C4 -.-> D" >> $GITHUB_STEP_SUMMARY
+          echo "    style B fill:#0066cc,color:#fff,stroke:#003d7a,stroke-width:3px" >> $GITHUB_STEP_SUMMARY
+          echo "    style A fill:#2088FF,color:#fff" >> $GITHUB_STEP_SUMMARY
+          echo "    style C1 fill:#f38020,color:#fff" >> $GITHUB_STEP_SUMMARY
+          echo "    style D fill:#00C853,color:#fff" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> **Infoblox UDDI** acts as the central management plane, distributing DNS records to multiple cloud providers" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Configuration Section
@@ -450,7 +459,7 @@ jobs:
             
             # Cloudflare Dashboard Info
             if [ -f "cf-response.json" ]; then
-              echo "## ☁️ Cloudflare Edge Network Status" >> $GITHUB_STEP_SUMMARY
+              echo "## 🎯 Downstream DNS Service (Example: Cloudflare)" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               
               RECORD_COUNT=$(jq -r '.result | length' cf-response.json 2>/dev/null || echo "0")
@@ -518,16 +527,16 @@ jobs:
           # Business Value Section
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 💼 Business Value" >> $GITHUB_STEP_SUMMARY
+          echo "## 💼 Infoblox UDDI Value Proposition" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ✅ Key Benefits Demonstrated" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Key Benefits" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **🤖 Full Automation** - Zero manual intervention in Cloudflare UI" >> $GITHUB_STEP_SUMMARY
-          echo "- **🔒 Single Source of Truth** - All DNS managed through Infoblox UDDI" >> $GITHUB_STEP_SUMMARY
-          echo "- **⚡ Instant Deployment** - Changes propagate within seconds" >> $GITHUB_STEP_SUMMARY
-          echo "- **🌐 Global Distribution** - Cloudflare's 300+ PoPs worldwide" >> $GITHUB_STEP_SUMMARY
-          echo "- **📊 Audit Trail** - Complete history via GitHub Actions" >> $GITHUB_STEP_SUMMARY
-          echo "- **🔄 Consistency** - IaC ensures reproducible deployments" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔒 Unified Management** - Single pane of glass for all DNS across multi-cloud" >> $GITHUB_STEP_SUMMARY
+          echo "- **🤖 Zero-Touch Automation** - Eliminate manual DNS configuration in each cloud provider" >> $GITHUB_STEP_SUMMARY
+          echo "- **🌐 Multi-Cloud Native** - AWS, Azure, GCP, Cloudflare, and more from one platform" >> $GITHUB_STEP_SUMMARY
+          echo "- **🛡️ Consistency & Compliance** - Enforce policies across all DNS services" >> $GITHUB_STEP_SUMMARY
+          echo "- **⚡ Rapid Deployment** - Infrastructure as Code enables GitOps workflows" >> $GITHUB_STEP_SUMMARY
+          echo "- **📊 Complete Visibility** - Centralized audit trail and reporting" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Technical Notes
@@ -545,4 +554,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "*Demo powered by Infoblox Universal DDI + Cloudflare + GitHub Actions*" >> $GITHUB_STEP_SUMMARY
+          echo "**Powered by [Infoblox Universal DDI](https://www.infoblox.com/products/bloxone-ddi/)** | Terraform BloxOne Provider | GitHub Actions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*This demo shows one of many cloud providers supported by Infoblox UDDI*" >> $GITHUB_STEP_SUMMARY
