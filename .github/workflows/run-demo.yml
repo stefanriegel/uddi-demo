@@ -1,0 +1,162 @@
+name: "Run UDDI + Cloudflare Demo"
+
+on:
+  workflow_dispatch:
+    inputs:
+      zone_fqdn:
+        description: "Authoritative zone FQDN (must end with a dot)"
+        default: "virtualife.pro."
+        required: true
+        type: string
+      record_name:
+        description: "Record name (label). Use empty for apex."
+        default: "www"
+        required: true
+        type: string
+      record_type:
+        description: "DNS record type"
+        required: true
+        type: choice
+        options: [A, AAAA, TXT, CNAME]
+        default: A
+      record_value:
+        description: "A/AAAA=IP, CNAME=target FQDN (with dot), TXT=content"
+        default: "203.0.113.10"
+        required: true
+        type: string
+      ttl:
+        description: "TTL seconds"
+        default: 120
+        required: true
+        type: number
+      action:
+        description: "Terraform action"
+        required: true
+        type: choice
+        options: [apply, destroy]
+        default: apply
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  demo:
+    name: "UDDI + Cloudflare Demo"
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: live/dev
+    env:
+      BLOXONE_HOST: ${{ vars.BLOXONE_HOST }}
+      BLOXONE_API_KEY: ${{ secrets.BLOXONE_API_KEY }}
+      CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Cache Terraform state and plugins (local backend)
+        uses: actions/cache@v4
+        with:
+          path: |
+            live/dev/.terraform
+            live/dev/.terraform.lock.hcl
+            live/dev/terraform.tfstate
+            live/dev/terraform.tfstate.backup
+          key: tfstate-${{ github.workflow }}-${{ github.ref_name }}-${{ inputs.zone_fqdn }}-${{ inputs.record_name }}-${{ inputs.record_type }}
+
+      - name: Terraform Init
+        run: terraform init -input=false -no-color
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -input=false -no-color \
+            -var="bloxone_host=${BLOXONE_HOST:-https://csp.infoblox.com}" \
+            -var="bloxone_api_key=${BLOXONE_API_KEY}" \
+            -var="cloudflare_account_id=${CF_ACCOUNT_ID}" \
+            -var="zone_fqdn=${{ inputs.zone_fqdn }}" \
+            -var="record_name=${{ inputs.record_name }}" \
+            -var="record_type=${{ inputs.record_type }}" \
+            -var="record_value=${{ inputs.record_value }}" \
+            -var="ttl=${{ inputs.ttl }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        if: ${{ inputs.action == 'apply' }}
+        run: |
+          terraform apply -input=false -auto-approve -no-color tfplan
+          terraform output -json > tfoutputs.json
+
+      - name: Terraform Destroy
+        if: ${{ inputs.action == 'destroy' }}
+        run: |
+          terraform destroy -input=false -auto-approve -no-color \
+            -var="bloxone_host=${BLOXONE_HOST:-https://csp.infoblox.com}" \
+            -var="bloxone_api_key=${BLOXONE_API_KEY}" \
+            -var="cloudflare_account_id=${CF_ACCOUNT_ID}" \
+            -var="zone_fqdn=${{ inputs.zone_fqdn }}" \
+            -var="record_name=${{ inputs.record_name }}" \
+            -var="record_type=${{ inputs.record_type }}" \
+            -var="record_value=${{ inputs.record_value }}" \
+            -var="ttl=${{ inputs.ttl }}"
+
+      - name: DNS Verification (dig @8.8.8.8)
+        if: ${{ inputs.action == 'apply' }}
+        run: |
+          set -e
+          FQDN="${{ inputs.record_name }}.${{ inputs.zone_fqdn }}"
+          FQDN="${FQDN%.}."
+          TYPE="${{ inputs.record_type }}"
+          echo "Querying ${TYPE} ${FQDN} @8.8.8.8"
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @8.8.8.8 | tee dig-output.txt
+
+      - name: Upload artifacts (proof)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-proof
+          path: |
+            live/dev/tfoutputs.json
+            live/dev/dig-output.txt
+            live/dev/terraform.tfstate
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Job Summary
+        if: always()
+        run: |
+          echo "## Run UDDI + Cloudflare Demo" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Action: ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Zone: ${{ inputs.zone_fqdn }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Name: ${{ inputs.record_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Type: ${{ inputs.record_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Value: ${{ inputs.record_value }}" >> $GITHUB_STEP_SUMMARY
+          echo "- TTL: ${{ inputs.ttl }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f "tfoutputs.json" ]; then
+            echo "### Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+            cat tfoutputs.json >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f "dig-output.txt" ]; then
+            echo "### dig result (@8.8.8.8)" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat dig-output.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Notes:_" >> $GITHUB_STEP_SUMMARY
+          echo "- State is kept local and cached via Actions Cache. Use the same inputs for destroy to re-use cache." >> $GITHUB_STEP_SUMMARY
+          echo "- Ensure CNAME targets end with a trailing dot." >> $GITHUB_STEP_SUMMARY
