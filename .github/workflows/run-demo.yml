@@ -159,15 +159,111 @@ jobs:
             -var="ttl=${{ inputs.ttl }}" \
             -var="orange_cloud=${{ inputs.orange_cloud }}"
 
-      - name: DNS Verification (dig @8.8.8.8)
+      - name: DNS Verification & Cloudflare Status
         if: ${{ inputs.action == 'apply' }}
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: |
           set -e
-          FQDN="${{ inputs.record_name }}.${{ inputs.zone_fqdn }}"
+          
+          # Construct FQDN
+          if [ -z "${{ inputs.record_name }}" ]; then
+            FQDN="${{ inputs.zone_fqdn }}"
+          else
+            FQDN="${{ inputs.record_name }}.${{ inputs.zone_fqdn }}"
+          fi
           FQDN="${FQDN%.}."
           TYPE="${{ inputs.record_type }}"
-          echo "Querying ${TYPE} ${FQDN} @8.8.8.8"
-          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @8.8.8.8 | tee dig-output.txt
+          
+          echo "============================================"
+          echo "🔍 DNS VERIFICATION"
+          echo "============================================"
+          echo ""
+          echo "Record: ${FQDN}"
+          echo "Type: ${TYPE}"
+          echo ""
+          
+          # Dig from multiple nameservers
+          echo "📡 Querying Google DNS (8.8.8.8)..."
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @8.8.8.8 | tee dig-google.txt
+          echo ""
+          
+          echo "📡 Querying Cloudflare DNS (1.1.1.1)..."
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @1.1.1.1 | tee dig-cloudflare.txt
+          echo ""
+          
+          echo "📡 Querying Quad9 DNS (9.9.9.9)..."
+          dig +nocmd +noall +answer -t "${TYPE}" "${FQDN}" @9.9.9.9 | tee dig-quad9.txt
+          echo ""
+          
+          # Full dig for debugging
+          echo "🔬 Full DNS Query Details:"
+          dig "${FQDN}" "${TYPE}" @8.8.8.8 | tee dig-full.txt
+          echo ""
+          
+          # Query Cloudflare API if token is available
+          if [ -n "${CF_API_TOKEN}" ] && [ -n "${CF_ZONE_ID}" ]; then
+            echo "============================================"
+            echo "☁️  CLOUDFLARE DASHBOARD INFO"
+            echo "============================================"
+            echo ""
+            
+            # Clean record name for API query
+            RECORD_NAME="${FQDN%.}"
+            
+            # Query Cloudflare API for record
+            CF_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/v4/zones/${CF_ZONE_ID}/dns_records?name=${RECORD_NAME}&type=${TYPE}" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json")
+            
+            echo "${CF_RESPONSE}" > cf-response.json
+            
+            # Check if record exists in Cloudflare
+            RECORD_COUNT=$(echo "${CF_RESPONSE}" | jq -r '.result | length')
+            
+            if [ "${RECORD_COUNT}" -gt 0 ]; then
+              echo "✅ Record found in Cloudflare"
+              echo ""
+              
+              # Extract record details
+              CF_ID=$(echo "${CF_RESPONSE}" | jq -r '.result[0].id')
+              CF_NAME=$(echo "${CF_RESPONSE}" | jq -r '.result[0].name')
+              CF_TYPE=$(echo "${CF_RESPONSE}" | jq -r '.result[0].type')
+              CF_CONTENT=$(echo "${CF_RESPONSE}" | jq -r '.result[0].content')
+              CF_TTL=$(echo "${CF_RESPONSE}" | jq -r '.result[0].ttl')
+              CF_PROXIED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].proxied')
+              CF_CREATED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].created_on')
+              CF_MODIFIED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].modified_on')
+              
+              echo "📋 Record Details:"
+              echo "   ID: ${CF_ID}"
+              echo "   Name: ${CF_NAME}"
+              echo "   Type: ${CF_TYPE}"
+              echo "   Content: ${CF_CONTENT}"
+              echo "   TTL: ${CF_TTL}"
+              if [ "${CF_PROXIED}" == "true" ]; then
+                echo "   Proxy: 🟠 ENABLED (Orange Cloud)"
+              else
+                echo "   Proxy: ⚪ DISABLED (DNS Only)"
+              fi
+              echo "   Created: ${CF_CREATED}"
+              echo "   Modified: ${CF_MODIFIED}"
+              echo ""
+              
+              # Dashboard link
+              echo "🔗 Cloudflare Dashboard:"
+              echo "   https://dash.cloudflare.com/${CF_ZONE_ID}/dns/records"
+            else
+              echo "⚠️  Record not yet synced to Cloudflare"
+              echo "   (UDDI sync may take a few moments)"
+            fi
+          else
+            echo "ℹ️  Cloudflare API credentials not configured"
+            echo "   Set CF_API_TOKEN and CF_ZONE_ID secrets to enable dashboard info"
+          fi
+          echo ""
+          echo "============================================"
 
       - name: Upload artifacts (proof)
         if: always()
@@ -176,37 +272,131 @@ jobs:
           name: demo-proof
           path: |
             live/dev/tfoutputs.json
-            live/dev/dig-output.txt
+            live/dev/dig-google.txt
+            live/dev/dig-cloudflare.txt
+            live/dev/dig-quad9.txt
+            live/dev/dig-full.txt
+            live/dev/cf-response.json
             live/dev/terraform.tfstate
           if-no-files-found: ignore
           retention-days: 7
 
       - name: Job Summary
         if: always()
+        env:
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: |
-          echo "## Run UDDI + Cloudflare Demo" >> $GITHUB_STEP_SUMMARY
+          echo "# UDDI + Cloudflare Demo Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Action: ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Zone: ${{ inputs.zone_fqdn }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Name: ${{ inputs.record_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Type: ${{ inputs.record_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Value: ${{ inputs.record_value }}" >> $GITHUB_STEP_SUMMARY
-          echo "- TTL: ${{ inputs.ttl }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Orange Cloud: ${{ inputs.orange_cloud }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Configuration Section
+          echo "## Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | \`${{ inputs.action }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Zone** | \`${{ inputs.zone_fqdn }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Record Name** | \`${{ inputs.record_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Type** | \`${{ inputs.record_type }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Value** | \`${{ inputs.record_value }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **TTL** | \`${{ inputs.ttl }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.orange_cloud }}" == "true" ]; then
+            echo "| **Orange Cloud** | ENABLED |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Orange Cloud** | Disabled |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # DNS Verification Section
+          if [ "${{ inputs.action }}" == "apply" ]; then
+            echo "## DNS Verification" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ -f "dig-google.txt" ]; then
+              echo "### Google DNS (8.8.8.8)" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              cat dig-google.txt >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ -f "dig-cloudflare.txt" ]; then
+              echo "### Cloudflare DNS (1.1.1.1)" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              cat dig-cloudflare.txt >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ -f "dig-quad9.txt" ]; then
+              echo "### Quad9 DNS (9.9.9.9)" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              cat dig-quad9.txt >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Cloudflare Dashboard Info
+            if [ -f "cf-response.json" ]; then
+              echo "## Cloudflare Dashboard" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              RECORD_COUNT=$(jq -r '.result | length' cf-response.json 2>/dev/null || echo "0")
+              
+              if [ "${RECORD_COUNT}" -gt 0 ]; then
+                CF_NAME=$(jq -r '.result[0].name' cf-response.json)
+                CF_TYPE=$(jq -r '.result[0].type' cf-response.json)
+                CF_CONTENT=$(jq -r '.result[0].content' cf-response.json)
+                CF_TTL=$(jq -r '.result[0].ttl' cf-response.json)
+                CF_PROXIED=$(jq -r '.result[0].proxied' cf-response.json)
+                CF_ID=$(jq -r '.result[0].id' cf-response.json)
+                
+                echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+                echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+                echo "| Status | Synced to Cloudflare |" >> $GITHUB_STEP_SUMMARY
+                echo "| Record ID | \`${CF_ID}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| Name | \`${CF_NAME}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| Type | \`${CF_TYPE}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| Content | \`${CF_CONTENT}\` |" >> $GITHUB_STEP_SUMMARY
+                echo "| TTL | \`${CF_TTL}\` |" >> $GITHUB_STEP_SUMMARY
+                
+                if [ "${CF_PROXIED}" == "true" ]; then
+                  echo "| Proxy Status | ENABLED (Orange Cloud) |" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "| Proxy Status | DISABLED (DNS Only) |" >> $GITHUB_STEP_SUMMARY
+                fi
+                
+                echo "" >> $GITHUB_STEP_SUMMARY
+                if [ -n "${CF_ZONE_ID}" ]; then
+                  echo "[Open Cloudflare Dashboard](https://dash.cloudflare.com/${CF_ZONE_ID}/dns/records)" >> $GITHUB_STEP_SUMMARY
+                fi
+              else
+                echo "Record not yet synced to Cloudflare (may take a few moments)" >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Terraform Outputs
           if [ -f "tfoutputs.json" ]; then
-            echo "### Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+            echo "## Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>View JSON</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
             cat tfoutputs.json >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ -f "dig-output.txt" ]; then
-            echo "### dig result (@8.8.8.8)" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            cat dig-output.txt >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
+          
+          # Notes Section
+          echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "_Notes:_" >> $GITHUB_STEP_SUMMARY
-          echo "- State is kept local and cached via Actions Cache. Use the same inputs for destroy to re-use cache." >> $GITHUB_STEP_SUMMARY
-          echo "- Ensure CNAME targets end with a trailing dot." >> $GITHUB_STEP_SUMMARY
+          echo "### Notes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- State is kept local and cached via Actions Cache" >> $GITHUB_STEP_SUMMARY
+          echo "- Use the same inputs for destroy to re-use cache" >> $GITHUB_STEP_SUMMARY
+          echo "- CNAME targets must end with a trailing dot" >> $GITHUB_STEP_SUMMARY
+          echo "- DNS propagation can take up to a few minutes" >> $GITHUB_STEP_SUMMARY
