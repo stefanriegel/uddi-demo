@@ -1,49 +1,94 @@
-module "cf_zone" {
-  source    = "../../modules/cf_zone"
-  zone_fqdn = var.zone_fqdn
+terraform {
+  required_providers {
+    bloxone = {
+      source  = "infobloxopen/bloxone"
+      version = ">= 1.5.0"
+    }
+  }
 }
 
-module "record_generic" {
-  source       = "../../modules/record_generic"
-  count        = var.record_type == "CNAME" ? 0 : 1
-  zone_fqdn    = module.cf_zone.zone_id
-  record_name  = var.record_name
-  record_type  = var.record_type
-  record_value = var.record_value
+provider "bloxone" {
+  csp_url = var.bloxone_host
+  api_key = var.bloxone_api_key
+}
+
+# Load existing zone
+data "bloxone_dns_auth_zones" "zone" {
+  filters = {
+    fqdn = var.zone_fqdn
+  }
+}
+
+# A Record (conditional)
+resource "bloxone_dns_a_record" "a_record" {
+  count        = var.record_type == "A" ? 1 : 0
+  name_in_zone = var.record_name
+  zone         = data.bloxone_dns_auth_zones.zone.results[0].id
   ttl          = var.ttl
+  comment      = "Terraform-managed A record"
+
+  rdata = {
+    address = var.record_value
+  }
 }
 
-module "record_cname" {
-  source       = "../../modules/record_cname"
+# AAAA Record (conditional)
+resource "bloxone_dns_aaaa_record" "aaaa_record" {
+  count        = var.record_type == "AAAA" ? 1 : 0
+  name_in_zone = var.record_name
+  zone         = data.bloxone_dns_auth_zones.zone.results[0].id
+  ttl          = var.ttl
+  comment      = "Terraform-managed AAAA record"
+
+  rdata = {
+    address = var.record_value
+  }
+}
+
+# TXT Record (conditional)
+resource "bloxone_dns_txt_record" "txt_record" {
+  count        = var.record_type == "TXT" ? 1 : 0
+  name_in_zone = var.record_name
+  zone         = data.bloxone_dns_auth_zones.zone.results[0].id
+  ttl          = var.ttl
+  comment      = "Terraform-managed TXT record"
+
+  rdata = {
+    text = var.record_value
+  }
+}
+
+# CNAME Record (conditional)
+resource "bloxone_dns_cname_record" "cname_record" {
   count        = var.record_type == "CNAME" ? 1 : 0
-  zone_fqdn    = module.cf_zone.zone_id
-  record_name  = var.record_name
-  cname_target = var.record_value
+  name_in_zone = var.record_name
+  zone         = data.bloxone_dns_auth_zones.zone.results[0].id
   ttl          = var.ttl
+  comment      = "Terraform-managed CNAME record"
+
+  rdata = {
+    cname = var.record_value
+  }
 }
 
 # Outputs
 output "zone_id" {
   description = "UDDI Zone ID"
-  value       = module.cf_zone.zone_id
+  value       = data.bloxone_dns_auth_zones.zone.results[0].id
 }
 
 output "zone_fqdn" {
-  description = "Zone FQDN (trailing dot)"
-  value       = module.cf_zone.zone_fqdn
+  description = "Zone FQDN"
+  value       = data.bloxone_dns_auth_zones.zone.results[0].fqdn
 }
 
 output "record_id" {
-  description = "Record ID (generic or CNAME, whichever is active)"
-  value       = try(module.record_generic[0].record_id, module.record_cname[0].record_id, null)
-}
-
-output "record_fqdn" {
-  description = "Record FQDN (generic or CNAME, whichever is active)"
-  value       = try(module.record_generic[0].record_fqdn, module.record_cname[0].record_fqdn, null)
-}
-
-output "cname_target" {
-  description = "CNAME target (only if record_type == CNAME)"
-  value       = try(module.record_cname[0].cname_target, null)
+  description = "Created record ID"
+  value = try(
+    bloxone_dns_a_record.a_record[0].id,
+    bloxone_dns_aaaa_record.aaaa_record[0].id,
+    bloxone_dns_txt_record.txt_record[0].id,
+    bloxone_dns_cname_record.cname_record[0].id,
+    null
+  )
 }
