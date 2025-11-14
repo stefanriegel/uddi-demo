@@ -1,0 +1,110 @@
+name: "Automated Cleanup"
+
+on:
+  schedule:
+    # Runs at midnight UTC every day
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm cleanup'
+        required: true
+        type: string
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  cleanup:
+    name: "Destroy all demo resources"
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: live/dev
+    env:
+      BLOXONE_HOST: ${{ vars.BLOXONE_HOST }}
+      BLOXONE_API_KEY: ${{ secrets.BLOXONE_API_KEY }}
+
+    steps:
+      - name: Confirm manual cleanup
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ inputs.confirm }}" != "destroy" ]; then
+            echo "❌ Cleanup cancelled - confirmation not provided"
+            exit 1
+          fi
+          echo "✅ Cleanup confirmed"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Restore Terraform state cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            live/dev/.terraform
+            live/dev/.terraform.lock.hcl
+            live/dev/terraform.tfstate
+            live/dev/terraform.tfstate.backup
+          key: tfstate-${{ github.workflow }}
+          restore-keys: |
+            tfstate-
+
+      - name: Terraform Init
+        run: terraform init -input=false -no-color
+
+      - name: List resources in state
+        id: state_check
+        run: |
+          if [ ! -f "terraform.tfstate" ]; then
+            echo "No state file found - nothing to cleanup"
+            echo "has_resources=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l || echo 0)
+          echo "Found ${RESOURCE_COUNT} resources in state"
+          echo "has_resources=true" >> $GITHUB_OUTPUT
+          echo "resource_count=${RESOURCE_COUNT}" >> $GITHUB_OUTPUT
+          
+          if [ "${RESOURCE_COUNT}" -gt 0 ]; then
+            echo "Resources to destroy:"
+            terraform state list
+          fi
+
+      - name: Terraform Destroy
+        if: steps.state_check.outputs.has_resources == 'true'
+        run: |
+          terraform destroy -input=false -auto-approve -no-color \
+            -var="bloxone_host=${BLOXONE_HOST:-https://csp.infoblox.com}" \
+            -var="bloxone_api_key=${BLOXONE_API_KEY}" \
+            -var="zone_fqdn=virtualife.pro." \
+            -var="record_name=cleanup" \
+            -var="record_type=A" \
+            -var="record_value=127.0.0.1" \
+            -var="ttl=60" \
+            -var="orange_cloud=false"
+
+      - name: Job Summary
+        if: always()
+        run: |
+          echo "## Automated Cleanup Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resources Found**: ${{ steps.state_check.outputs.resource_count || '0' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.state_check.outputs.has_resources }}" == "true" ]; then
+            echo "✅ **Status**: Resources destroyed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ **Status**: No resources found - nothing to cleanup" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Scheduled cleanup runs daily at 00:00 UTC_" >> $GITHUB_STEP_SUMMARY
