@@ -220,72 +220,96 @@ jobs:
           echo ""
           
           # Query Cloudflare API if token is available
-          if [ -n "${CF_API_TOKEN}" ] && [ -n "${CF_ZONE_ID}" ]; then
+          if [ -n "${CF_API_TOKEN}" ]; then
             echo "============================================"
             echo "☁️  CLOUDFLARE DASHBOARD INFO"
             echo "============================================"
             echo ""
             
-            # Clean record name for API query
-            RECORD_NAME="${FQDN%.}"
-            
-            echo "Querying Cloudflare API for: ${RECORD_NAME} (${TYPE})"
-            echo "Zone ID: ${CF_ZONE_ID}"
-            echo ""
-            
-            # Query Cloudflare API for record
-            CF_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/v4/zones/${CF_ZONE_ID}/dns_records?name=${RECORD_NAME}&type=${TYPE}" \
-              -H "Authorization: Bearer ${CF_API_TOKEN}" \
-              -H "Content-Type: application/json")
-            
-            echo "${CF_RESPONSE}" > cf-response.json
-            
-            # Check API response success
-            CF_SUCCESS=$(echo "${CF_RESPONSE}" | jq -r '.success' 2>/dev/null || echo "false")
-            if [ "${CF_SUCCESS}" != "true" ]; then
-              echo "⚠️  Cloudflare API Error:"
-              echo "${CF_RESPONSE}" | jq -r '.errors[]?.message' 2>/dev/null || echo "Unknown error"
+            # Auto-discover zone ID if not provided
+            if [ -z "${CF_ZONE_ID}" ]; then
+              echo "CF_ZONE_ID not set, looking up zone for ${{ inputs.zone_fqdn }}..."
+              ZONE_NAME="${FQDN#*.}"  # Remove first label to get zone
+              ZONE_NAME="${ZONE_NAME%.}"  # Remove trailing dot
+              echo "Looking for zone: ${ZONE_NAME}"
+              
+              ZONE_LOOKUP=$(curl -s -X GET "https://api.cloudflare.com/v4/zones?name=${ZONE_NAME}" \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                -H "Content-Type: application/json")
+              
+              CF_ZONE_ID=$(echo "${ZONE_LOOKUP}" | jq -r '.result[0].id // empty')
+              
+              if [ -n "${CF_ZONE_ID}" ]; then
+                echo "Found Zone ID: ${CF_ZONE_ID}"
+              else
+                echo "⚠️  Could not find zone in Cloudflare account"
+                echo "API Response: ${ZONE_LOOKUP}" | jq .
+              fi
               echo ""
             fi
             
-            # Check if record exists in Cloudflare
-            RECORD_COUNT=$(echo "${CF_RESPONSE}" | jq -r '.result | length')
-            
-            if [ "${RECORD_COUNT}" -gt 0 ]; then
-              echo "✅ Record found in Cloudflare"
+            if [ -n "${CF_ZONE_ID}" ]; then
+              # Clean record name for API query
+              RECORD_NAME="${FQDN%.}"
+              
+              echo "Querying Cloudflare API for: ${RECORD_NAME} (${TYPE})"
+              echo "Zone ID: ${CF_ZONE_ID}"
               echo ""
               
-              # Extract record details
-              CF_ID=$(echo "${CF_RESPONSE}" | jq -r '.result[0].id')
-              CF_NAME=$(echo "${CF_RESPONSE}" | jq -r '.result[0].name')
-              CF_TYPE=$(echo "${CF_RESPONSE}" | jq -r '.result[0].type')
-              CF_CONTENT=$(echo "${CF_RESPONSE}" | jq -r '.result[0].content')
-              CF_TTL=$(echo "${CF_RESPONSE}" | jq -r '.result[0].ttl')
-              CF_PROXIED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].proxied')
-              CF_CREATED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].created_on')
-              CF_MODIFIED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].modified_on')
+              # Query Cloudflare API for record
+              CF_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/v4/zones/${CF_ZONE_ID}/dns_records?name=${RECORD_NAME}&type=${TYPE}" \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                -H "Content-Type: application/json")
               
-              echo "📋 Record Details:"
-              echo "   ID: ${CF_ID}"
-              echo "   Name: ${CF_NAME}"
-              echo "   Type: ${CF_TYPE}"
-              echo "   Content: ${CF_CONTENT}"
-              echo "   TTL: ${CF_TTL}"
-              if [ "${CF_PROXIED}" == "true" ]; then
-                echo "   Proxy: 🟠 ENABLED (Orange Cloud)"
-              else
-                echo "   Proxy: ⚪ DISABLED (DNS Only)"
+              echo "${CF_RESPONSE}" > cf-response.json
+              
+              # Check API response success
+              CF_SUCCESS=$(echo "${CF_RESPONSE}" | jq -r '.success' 2>/dev/null || echo "false")
+              if [ "${CF_SUCCESS}" != "true" ]; then
+                echo "⚠️  Cloudflare API Error:"
+                echo "${CF_RESPONSE}" | jq -r '.errors[]?.message' 2>/dev/null || echo "Unknown error"
+                echo ""
               fi
-              echo "   Created: ${CF_CREATED}"
-              echo "   Modified: ${CF_MODIFIED}"
-              echo ""
               
-              # Dashboard link
-              echo "🔗 Cloudflare Dashboard:"
-              echo "   https://dash.cloudflare.com/${CF_ZONE_ID}/dns/records"
-            else
-              echo "⚠️  Record not yet synced to Cloudflare"
-              echo "   (UDDI sync may take a few moments)"
+              # Check if record exists in Cloudflare
+              RECORD_COUNT=$(echo "${CF_RESPONSE}" | jq -r '.result | length')
+              
+              if [ "${RECORD_COUNT}" -gt 0 ]; then
+                echo "✅ Record found in Cloudflare"
+                echo ""
+                
+                # Extract record details
+                CF_ID=$(echo "${CF_RESPONSE}" | jq -r '.result[0].id')
+                CF_NAME=$(echo "${CF_RESPONSE}" | jq -r '.result[0].name')
+                CF_TYPE=$(echo "${CF_RESPONSE}" | jq -r '.result[0].type')
+                CF_CONTENT=$(echo "${CF_RESPONSE}" | jq -r '.result[0].content')
+                CF_TTL=$(echo "${CF_RESPONSE}" | jq -r '.result[0].ttl')
+                CF_PROXIED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].proxied')
+                CF_CREATED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].created_on')
+                CF_MODIFIED=$(echo "${CF_RESPONSE}" | jq -r '.result[0].modified_on')
+                
+                echo "📋 Record Details:"
+                echo "   ID: ${CF_ID}"
+                echo "   Name: ${CF_NAME}"
+                echo "   Type: ${CF_TYPE}"
+                echo "   Content: ${CF_CONTENT}"
+                echo "   TTL: ${CF_TTL}"
+                if [ "${CF_PROXIED}" == "true" ]; then
+                  echo "   Proxy: 🟠 ENABLED (Orange Cloud)"
+                else
+                  echo "   Proxy: ⚪ DISABLED (DNS Only)"
+                fi
+                echo "   Created: ${CF_CREATED}"
+                echo "   Modified: ${CF_MODIFIED}"
+                echo ""
+                
+                # Dashboard link
+                echo "🔗 Cloudflare Dashboard:"
+                echo "   https://dash.cloudflare.com/${CF_ZONE_ID}/dns/records"
+              else
+                echo "⚠️  Record not yet synced to Cloudflare"
+                echo "   (UDDI sync may take a few moments)"
+              fi
             fi
           else
             echo "ℹ️  Cloudflare API credentials not configured"
