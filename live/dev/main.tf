@@ -32,7 +32,7 @@ resource "bloxone_dns_a_record" "a_record" {
   }
 
   options = {
-    cloudflare_proxied = var.enable_proxy
+    cloudflare_proxied = var.orange_cloud
   }
 }
 
@@ -48,7 +48,7 @@ resource "bloxone_dns_aaaa_record" "aaaa_record" {
     address = var.record_value
   }
 
-  options {
+  options = {
     cloudflare_proxied = var.orange_cloud
   }
 }
@@ -78,7 +78,7 @@ resource "bloxone_dns_cname_record" "cname_record" {
     cname = var.record_value
   }
 
-  options {
+  options = {
     cloudflare_proxied = var.orange_cloud
   }
 }
